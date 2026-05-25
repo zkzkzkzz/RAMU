@@ -20,7 +20,7 @@ class NaiveBayesClassifier(BaseEstimator, ClassifierMixin):
 
     def predict(self, X):
         results = predict_batch(self.model_, X)
-        return results['prediction'].values
+        return results['predikcija'].values
 
 
 # =============================================================================

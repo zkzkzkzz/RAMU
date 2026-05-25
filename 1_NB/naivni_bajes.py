@@ -14,7 +14,7 @@ def learn(data, kolona_klase, smoothing):
     # punimo recnik sa jednim parom: kljuc je _classes vrednost je array vrednosti
     model['_classes'] = classes
 
-    # log apriori verovatnoce - vrvca sbake klase generalno
+    # log apriori verovatnoce - vrvca svake klase generalno
     apriori = (data[kolona_klase].value_counts() + smoothing) / (len(data) + smoothing * len(classes))
     apriori = apriori.replace(0, 1e-9)
 
@@ -52,6 +52,7 @@ def predict(model, instance):
             if col not in model:
                 continue
 
+            # raspakivanje tuple-a
             attr_type, attr_data = model[col]
 
             # numericki
@@ -75,21 +76,22 @@ def predict(model, instance):
 
 
 def predict_batch(model, data):
-    results = data.copy()
-    predictions = []
-    log_prob_cols = {cls: [] for cls in model['_classes']}
+    rezultati_lista = []
 
+    # prolazimo kroz sve pacijente
     for i in range(len(data)):
-        pred, log_probs = predict(model, data.iloc[i])
-        predictions.append(pred)
-        for cls in model['_classes']:
-            log_prob_cols[cls].append(log_probs[cls])
+        predikcija, log_posteriori = predict(model, data.iloc[i])
 
-    results['prediction'] = predictions
-    for cls in model['_classes']:
-        results[f'log_P(class={cls})'] = log_prob_cols[cls]
+        # pravimo ceo red sa predikcijom i svim verovatnoćama
+        novi_red = {'predikcija': predikcija}
+        for cls, log_posterior_vrednost in log_posteriori.items():
+            novi_red[f'log_P(klasa={cls})'] = log_posterior_vrednost
 
-    return results
+        rezultati_lista.append(novi_red)
+
+    # pretvaramo listu u DataFrame i kombinujemo je sa originalnim podacima
+    predikcije_df = pd.DataFrame(rezultati_lista, index=data.index)
+    return pd.concat([data, predikcije_df], axis=1)
 
 # Pozivanje modela
 if __name__ == '__main__':
@@ -113,6 +115,6 @@ if __name__ == '__main__':
     results = predict_batch(model, data.drop(columns=[kolona_klase]))
 
 
-    correct = (results['prediction'] == data[kolona_klase]).sum()
+    correct = (results['predikcija'] == data[kolona_klase]).sum()
     print(f"Tacnost: {correct / len(data) * 100:.2f}%")
     print(results.head(10).to_string())
