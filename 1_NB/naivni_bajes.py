@@ -1,22 +1,22 @@
 import pandas as pd
 import numpy as np
 
-
-data = pd.read_csv('data/drug.csv')
+data = pd.read_csv('../data/drug.csv')
 kolona_klase = data.columns[-1]
-smoothing = 1.0
 
 def is_numeric(data, col):
     return pd.api.types.is_numeric_dtype(data[col])
 
 def learn(data, kolona_klase, smoothing):
     model = {}
+    # vadimo numpy array jedinstvenih vrednosti redova iz kolone Drug
     classes = data[kolona_klase].unique()
+    # punimo recnik sa jednim parom: kljuc je _classes vrednost je array vrednosti
     model['_classes'] = classes
 
-    # log apriori verovatnoce
-    apriori = data[kolona_klase].value_counts()
-    apriori = apriori / apriori.sum()
+    # log apriori verovatnoce - vrvca sbake klase generalno
+    apriori = (data[kolona_klase].value_counts() + smoothing) / (len(data) + smoothing * len(classes))
+    apriori = apriori.replace(0, 1e-9)
 
     # sabiramo logaritme verovatnoca zbog underflow-a
     model['_apriori'] = np.log(apriori)
@@ -26,13 +26,16 @@ def learn(data, kolona_klase, smoothing):
             # numericki atribut -> normalna raspodela, cuvamo mean i std po klasi
             stats = data.groupby(kolona_klase)[col].agg(['mean', 'std'])
             stats['std'] = stats['std'].replace(0, 1e-9)
+
+            # ide po iterabilnoj: kljuc je ime kolone, vrednost je tuple sa tipom podataka i statom
             model[col] = ('gaussian', stats)
         else:
             # kategoricki atribut -> matrica kontigencije + smoothing
             mat = pd.crosstab(data[col], data[kolona_klase])
-            # trazimo broj razlicitih vrednosti
+            # trazimo broj razlicitih vrednosti - vadi broj redova u toj koloni npr 2 za Pol
             n_values = mat.shape[0]
             mat = (mat + smoothing) / (mat.sum(axis=0) + smoothing * n_values)
+            mat = mat.replace(0, 1e-9)
             model[col] = ('categorical', np.log(mat))
 
     return model
@@ -42,7 +45,8 @@ def predict(model, instance):
     log_probs = {}
 
     for cls in model['_classes']:
-        log_p = model['_apriori'][cls]
+        log_aprior = model['_apriori'][cls]
+        log_likelihood = 0
 
         for col, value in instance.items():
             if col not in model:
@@ -50,18 +54,21 @@ def predict(model, instance):
 
             attr_type, attr_data = model[col]
 
+            # numericki
             if attr_type == 'gaussian':
                 mean = attr_data.loc[cls, 'mean']
                 std  = attr_data.loc[cls, 'std']
                 # log gustina normalne raspodele
-                log_p += -0.5 * np.log(2 * np.pi * std**2) - (value - mean)**2 / (2 * std**2)
+                log_likelihood += -0.5 * np.log(2 * np.pi * std**2) - (value - mean)**2 / (2 * std**2)
+
+            # kategoricki
             else:
                 if value in attr_data.index:
-                    log_p += attr_data.loc[value, cls]
+                    log_likelihood += attr_data.loc[value, cls]
                 else:
-                    log_p += np.log(1e-9)  # za nepoznate vrednosti
+                    log_likelihood += np.log(1e-9)  # za nepoznate vrednosti
 
-        log_probs[cls] = log_p
+        log_probs[cls] = log_aprior + log_likelihood
 
     prediction = max(log_probs, key=log_probs.get)
     return prediction, log_probs
@@ -85,26 +92,27 @@ def predict_batch(model, data):
     return results
 
 # Pozivanje modela
+if __name__ == '__main__':
+    smoothing = 1
+    model = learn(data, kolona_klase, smoothing)
 
-model = learn(data, kolona_klase, smoothing=1.0)
+    novi_pacijent = {
+        'Age': 25,
+        'Sex': 'F',
+        'BP': 'HIGH',
+        'Cholesterol': 'NORMAL',
+        'NaK': 15.5
+    }
 
-novi_pacijent = {
-    'Age': 25,
-    'Sex': 'F',
-    'BP': 'HIGH',
-    'Cholesterol': 'NORMAL',
-    'NaK': 15.5
-}
+    predikcija, verovatnoce = predict(model, novi_pacijent)
 
-predikcija, verovatnoce = predict(model, novi_pacijent)
-
-print(f"predikcija za jednog: {predikcija}")
-print(f"verovatnoce lekova za jednog: {verovatnoce}")
-
-
-results = predict_batch(model, data.drop(columns=[kolona_klase]))
+    print(f"predikcija leka za jednog: {predikcija}")
+    print(f"verovatnoce lekova za jednog: {verovatnoce}")
 
 
-correct = (results['prediction'] == data[kolona_klase]).sum()
-print(f"Tacnost: {correct / len(data) * 100:.2f}%")
-print(results.head(10).to_string())
+    results = predict_batch(model, data.drop(columns=[kolona_klase]))
+
+
+    correct = (results['prediction'] == data[kolona_klase]).sum()
+    print(f"Tacnost: {correct / len(data) * 100:.2f}%")
+    print(results.head(10).to_string())
