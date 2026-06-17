@@ -1,0 +1,43 @@
+Testiram k=2...
+  silhouette score za k=2: 0.5308
+
+Testiram k=3...
+  silhouette score za k=3: 0.3898
+
+Testiram k=4...
+  silhouette score za k=4: 0.4043
+
+Testiram k=5...
+  silhouette score za k=5: 0.3589
+
+Testiram k=6...
+  silhouette score za k=6: 0.4268
+
+Testiram k=7...
+  silhouette score za k=7: 0.3890
+
+Testiram k=8...
+  silhouette score za k=8: 0.4582
+
+Optimalno k = 2 (silhouette=0.5308)
+
+Restart 1/5:
+
+Restart 2/5:
+
+Restart 3/5:
+
+Restart 4/5:
+
+Restart 5/5:
+
+Provera kvaliteta klastera:
+
+Centroidi:
+       CRIM         ZN      INDUS  ...           B      LSTAT       MEDV
+0  9.839575   0.000000  18.975085  ...  300.967345  18.666610  16.493220
+1  0.263946  17.477204   6.919818  ...  386.643891   9.417812  25.782067
+
+[2 rows x 14 columns]
+Klaster 0: 177 tacaka
+Klaster 1: 329 tacaka
